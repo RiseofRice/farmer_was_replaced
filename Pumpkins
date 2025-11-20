@@ -1,0 +1,93 @@
+# --- Helpers ---
+def mv(direction, n):
+	i = 0
+	while i < n:
+		move(direction)
+		i += 1
+
+def goto(x, y):
+	# bring drone zuverlässig zu (x,y) von aktueller Position
+	# Strategie: bewege zuerst in X, dann in Y (funktioniert unabhängig von Start)
+	# Annahme: get_pos_x/y geben aktuelle Koordinaten
+	while get_pos_x() < x:
+		move(East)
+	while get_pos_x() > x:
+		move(West)
+	while get_pos_y() < y:
+		move(North)
+	while get_pos_y() > y:
+		move(South)
+
+def ret_to_origin():
+	# Vermutlich (0,0) ist Rasterursprung — bring uns dorthin
+	mv(South, get_pos_y())
+	mv(West, get_pos_x())
+
+# --- Field helpers ---
+def till_all(size):
+	# till (umgraben) ganze quadratische Fläche size x size
+	for xx in range(size):
+		for yy in range(size):
+			goto(xx, yy)
+			till()
+
+def plant_if_empty():
+	# legt einen Kürbis an der aktuellen Position, falls leer oder 'dead'
+	ent = get_entity_type()
+	if get_water() == 0:
+		use_item(Items.Water)
+	if ent == None or ent == Entities.Dead_Pumpkin:
+		plant(Entities.Pumpkin)
+
+# --- Main pumpkin farm routine ---
+def pumpkin_farm():
+	clear()                # optional: räume lokale Variablen / UI
+	size = get_world_size()  # skalierbar: arbeitet für beliebige Weltgröße
+	ret_to_origin()
+	till_all(size)
+
+	while True:
+		# initialisiere Liste mit allen Feldern
+		pumpkin_positions = []
+		for x in range(size):
+			for y in range(size):
+				goto(x, y)
+				# optional: water if you have an Item.Water and growth is slow
+				# if num_items(Items.Water) > 0: use_item(Items.Water)
+				if num_items(Items.Water) > 0: 
+					use_item(Items.Water)
+				ent = get_entity_type()
+				if ent == None or ent == Entities.Dead_Pumpkin:
+					plant(Entities.Pumpkin)
+					pumpkin_positions.append((x, y))
+				elif ent == Entities.Pumpkin and not can_harvest():
+					pumpkin_positions.append((x, y))
+				# else: if it's a mature pumpkin, don't add (it's already ok)
+
+		# arbeite nur die Positionen ab, die noch attention brauchen
+		while len(pumpkin_positions) > 0:
+			# iteriere über eine Kopie, weil wir Elemente entfernen können
+			for pos in pumpkin_positions[:]:
+				x, y = pos
+				goto(x, y)
+				ent = get_entity_type()
+				if ent == None or ent == Entities.Dead_Pumpkin:
+					plant(Entities.Pumpkin)
+				elif ent == Entities.Pumpkin:
+					if can_harvest():
+						# diese Position ist fertig — entferne aus Liste
+						pumpkin_positions.remove(pos)
+					else:
+						# noch nicht reif — eventuell water/use item hier
+						pass
+				else:
+					# z. B. andere Entität — entferne oder handle je nach Bedarf
+					# für Sicherheit entfernen wir Position (oder du kannst neu pflanzen)
+					pumpkin_positions.remove(pos)
+
+		# wenn wir hier ankommen, ist das Feld komplett ausgewachsen
+		ret_to_origin()
+		harvest()   # erntet den großen Kürbis (game-Default)
+		# optional: sammle/verkaufe, warte, oder wiederhole sofort
+pumpkin_farm()
+		
